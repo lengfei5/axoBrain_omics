@@ -43,6 +43,9 @@ source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts
 ########################################################
 ########################################################
 
+##########################################
+# process gene annotation 
+##########################################
 processing_annot = FALSE
 if(processing_annot){
   annot = rtracklayer::import(paste0("/groups/tanaka/People/current/Diego/Projects/",
@@ -82,8 +85,9 @@ if(processing_annot){
 
 annot = readRDS(file = paste0(RdataDir, 'primary_curated_250329_geneAnnotation.withChrM.rds'))
 
-
-
+##########################################
+# start to check the Diego's data 
+##########################################
 aa = readRDS(paste0(dataDir, '250701_LimbRegeneration.RDS'))
 metadata = aa@meta.data
 counts = aa@assays$GenesExons$counts
@@ -672,24 +676,205 @@ dev.off()
 # 
 ########################################################
 ########################################################
-aa = readRDS(file = paste0("/groups/tanaka/People/current/Andre/260314_FibroblastActivation.RDS"))
+resDir = paste0("../results/scRNAseq_axolotle_PrimaryLimbCells", version.analysis, '/')
+if(!dir.exists(resDir)) dir.create(resDir)
 
-DimPlot(aa)
+
+##########################################
+# process the matched gene annotation 
+##########################################
+processing_annot = FALSE
+if(processing_annot){
+  annot_file = paste0("/groups/tanaka/People/current/Diego/Projects/",
+                      "8_Transxolotl/5_AxolotlT2T/data/00_assemblies/1_hifiasm/",
+                      "231106_22xFlowcells+UL/assembly/primary_curated/260226/",
+                      "annotation/geneAnnotation.with-chrM.gtf")
+  annot = rtracklayer::import(annot_file)
+  
+  annot = data.frame(annot$gene_id, annot$name)
+  colnames(annot) = c('gene_id', 'gene')
+  annot = annot[!is.na(annot$gene), ]
+  
+  annot$name = paste0(annot$gene, '_', annot$gene_id)
+  
+  names_uniq = unique(annot$name)
+  
+  annot = annot[match(names_uniq, annot$name), ]
+  
+  jj = which(annot$gene_id != annot$gene)
+  
+  xx = annot 
+  genes_uniq = unique(xx$gene)
+  for(n in 1:length(genes_uniq))
+  {
+    kk = which(xx$gene == genes_uniq[n])
+    
+    if(length(kk) > 1) {
+      cat(n, '--', genes_uniq[n], '--', xx$name[kk], '\n')
+      xx$gene[kk] = xx$name[kk]
+    }
+  }
+  
+  annot = xx
+  rm(xx)
+  
+  saveRDS(annot, file = paste0(RdataDir, 'primary_curated_260226_geneAnnotation.withChrM.rds'))
+  
+}
+
+##########################################
+# import and overview of Andre's data
+##########################################
+aa = readRDS(file = paste0("/groups/tanaka/People/current/Andre/260314_FibroblastActivation.RDS"))
+annot = readRDS(file = paste0(RdataDir, 'primary_curated_250329_geneAnnotation.withChrM.rds'))
 
 DefaultAssay(aa) = 'GenesExons'
 
+aa$condition = aa$orig.ident
 
-aa$condition = colnames(aa)
-aa$condition = sapply(aa$condition, 
-                      function(x){xx = unlist(strsplit(x, '_')); paste0(xx[1:(length(xx)-3)], '_')})
+aa$condition = gsub('FibroblastActivation_', '', aa$condition)
+aa$condition = gsub('PrimaryLimbCells_', 'PLC_', aa$condition)
+aa$condition = gsub('Tissue_Blastema', 'Blastema_', aa$condition)
+aa$condition = gsub('Tissue_MatureLimb', 'MatLimb_0dpa', aa$condition)
+aa$condition = gsub('DexamethasoneRuxolitinibtreated', 'Dexatreated', aa$condition)
+
+DimPlot(aa, reduction = 'umap', group.by = 'condition', label = TRUE, repel = TRUE, raster=FALSE)
+
+ggsave(filename = paste0(resDir, "Andre_PLC_scRNAseq_UMAP.pdf"),
+       width = 12, height = 20)
 
 
-aa$condition = gsub('FibroblastActivation_PrimaryLimbCells_', '', aa$condition)
+metadata = aa@meta.data
+counts = aa@assays$GenesExons$counts
+
+mm = match(rownames(counts), annot$gene_id)
+
+rownames(counts) = annot$gene[mm]
+
+xx <- CreateSeuratObject(counts = counts, project = "axoPrimaryLimbCells", meta.data = metadata)
+
+xx[['integrated']] = aa[['integrated']]
+xx[['tsne']] = aa[['tsne']]
+xx[['umap3d']] = aa[['umap3d']]
+xx[['tsne3d']] = aa[['tsne3d']]
+xx[['umap_old']] = aa[['umap']]
+
+rm(aa)
+aa = xx
+rm(xx)
 
 
+aa = NormalizeData(aa, normalization.method = "LogNormalize", scale.factor = 10000)
+aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
 
-DimPlot(aa, reduction = 'umap', group.by = 'condition')
+aa <- ScaleData(aa)
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
 
-DimPlot(aa, features = '')
+ElbowPlot(aa, ndims = 50)
+
+aa <- RunUMAP(aa, reduction = "pca", dims = 1:50, n.neighbors = 50,  min.dist = 0.3)
+
+
+p1 = DimPlot(aa, group.by = 'condition', reduction = 'umap', label = TRUE, repel = TRUE)
+
+p1
+
+ggsave(filename = paste0(resDir, "Andre_PLCscRNAseq_UMAP_firstCheck.pdf"),
+       width = 12, height = 8)
+
+mtgenes = c("COX1", "COX2", "COX3", "ATP6", "ND1", "ND5", "CYTB", "ND2", "ND4", "ATP8", "MT-CO1", "COI")
+mtgenes = c(mtgenes, paste0("MT", mtgenes), paste0("MT-", mtgenes))
+mtgenes = rownames(aa)[!is.na(match(rownames(aa), mtgenes))]
+
+xx = PercentageFeatureSet(aa, col.name = "percent.mt", assay = "RNA", features = mtgenes)
+aa[['percent.mt']] = xx$percent.mt
+
+rm(xx)
+
+# Visualize QC metrics as a violin plot
+#VlnPlot(aa, features = c("nFeature_RNA", "nCount_RNA", "mitoRatio"), group.by = 'condition', ncol = 1)
+VlnPlot(aa, features = 'nFeature_RNA', y.max = 7000, group.by = 'condition', pt.size = 0.0) +
+  geom_hline(yintercept = c(500, 800, 1000))
+
+VlnPlot(aa, features = 'nCount_RNA', y.max = 50000, group.by = 'condition', pt.size = 0.0) +
+  geom_hline(yintercept = c(500,1000))
+
+VlnPlot(aa, features = 'percent.mt', y.max = 20, group.by = 'condition', pt.size = 0.0) +
+  geom_hline(yintercept = c(5,10))
+
+
+## second time cell filtering 
+aa <- subset(aa, subset = nFeature_RNA > 500 & percent.mt < 5)
+
+#aa = subset(aa, subset = nFeature_RNA > 1000 & nFeature_RNA < 10000 & percent.mt < 5)
+saveRDS(aa, file = paste0(RdataDir, 'Andre_PLCscRNAseq_QCsfiltered.rds'))
+
+##########################################
+# identify doublet
+##########################################
+#aa = readRDS(file = paste0(RdataDir, 'Andre_PLCscRNAseq_QCsfiltered.rds'))
+library(DoubletFinder)
+aa$DF_out = NA
+
+#aa$condition = factor(aa$condition)
+Idents(aa) = aa$condition
+cc = unique(aa$condition)
+
+for(n in 1:length(cc))
+{
+  # n = 1
+  cat(n, '-----', as.character(cc[n]), '\n')
+  subs <- subset(aa, condition == cc[n])
+  
+  subs <- FindVariableFeatures(subs, selection.method = "vst", nfeatures = 5000)
+  subs <- ScaleData(subs)
+  
+  subs <- RunPCA(subs, verbose = TRUE)
+  subs <- FindNeighbors(subs, dims = 1:30)
+  subs <- FindClusters(subs, resolution = 0.5)
+  
+  subs <- RunUMAP(subs, dims = 1:30)
+  
+  sweep.res.list_nsclc <- paramSweep(subs, PCs = 1:30)
+  sweep.stats_nsclc <- summarizeSweep(sweep.res.list_nsclc, GT = FALSE)
+  bcmvn_nsclc <- find.pK(sweep.stats_nsclc)
+  
+  pK <- bcmvn_nsclc %>% # select the pK that corresponds to max bcmvn to optimize doublet detection
+    filter(BCmetric == max(BCmetric)) %>%
+    select(pK) 
+  
+  pK <- as.numeric(as.character(pK[[1]]))
+  annotations <- subs@meta.data$seurat_clusters
+  homotypic.prop <- modelHomotypic(annotations) 
+  
+  
+  nExp_poi <- round(0.076*nrow(subs@meta.data))  
+  nExp_poi.adj <- round(nExp_poi*(1-homotypic.prop))
+  
+  subs <- DoubletFinder::doubletFinder(subs, PCs = 1:20, pN = 0.25, pK = pK, nExp = nExp_poi.adj,  
+                                       reuse.pANN = FALSE , sct = FALSE)
+  
+  df_out = subs@meta.data
+  subs$DF_out = df_out[, grep('DF.classification', colnames(df_out))]
+  
+  aa$DF_out[match(colnames(subs), colnames(aa))] = subs$DF_out
+  
+  DimPlot(subs, label = TRUE, repel = TRUE, group.by = 'DF_out',
+          raster=FALSE)
+  
+  ggsave(filename = paste0(resDir, '/subs_doubletFinder_out_', cc[n], version.analysis, '.pdf'), 
+         width = 12, height = 8)
+  
+  saveRDS(subs, file = paste0(RdataDir, 'subs_doubletFinder_out_', cc[n], version.analysis,  
+                              '.rds'))
+  
+}
+
+DimPlot(aa, group.by = 'DF_out')
+
+saveRDS(aa, file = paste0(RdataDir, 
+                          '/Andre_PLCscRNAseq_QCsfiltered_DFout.rds'))
+
+
 
 
