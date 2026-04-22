@@ -35,6 +35,14 @@ functionDir = '/groups/tanaka/People/current/jiwang/projects/heart_regeneration/
 source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/functions_scRNAseq.R')
 source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/functions_Visium.R')
 
+
+########################################################
+########################################################
+# Section I: Import the new scRNA-seq data for axolotl limb regeneration
+# with dpa0, dpa5, dpa11, dpa18
+########################################################
+########################################################
+
 processing_annot = FALSE
 if(processing_annot){
   annot = rtracklayer::import(paste0("/groups/tanaka/People/current/Diego/Projects/",
@@ -75,12 +83,7 @@ if(processing_annot){
 annot = readRDS(file = paste0(RdataDir, 'primary_curated_250329_geneAnnotation.withChrM.rds'))
 
 
-########################################################
-########################################################
-# Section I: Import the new scRNA-seq data for axolotl limb regeneration
-# with dpa0, dpa5, dpa11, dpa18
-########################################################
-########################################################
+
 aa = readRDS(paste0(dataDir, '250701_LimbRegeneration.RDS'))
 metadata = aa@meta.data
 counts = aa@assays$GenesExons$counts
@@ -661,5 +664,32 @@ ce <- ClusterExperiment(heatdata, heatclus, transformation = log1p)
 clusterExperiment::plotHeatmap(ce, clusterSamplesData = "orderSamplesValue", 
                                visualizeData = 'transformed', cexRow = 1.5, fontsize = 15)
 dev.off()
+
+
+########################################################
+########################################################
+# Section III: test Andre's vitro data 
+# 
+########################################################
+########################################################
+aa = readRDS(file = paste0("/groups/tanaka/People/current/Andre/260314_FibroblastActivation.RDS"))
+
+DimPlot(aa)
+
+DefaultAssay(aa) = 'GenesExons'
+
+
+aa$condition = colnames(aa)
+aa$condition = sapply(aa$condition, 
+                      function(x){xx = unlist(strsplit(x, '_')); paste0(xx[1:(length(xx)-3)], '_')})
+
+
+aa$condition = gsub('FibroblastActivation_PrimaryLimbCells_', '', aa$condition)
+
+
+
+DimPlot(aa, reduction = 'umap', group.by = 'condition')
+
+DimPlot(aa, features = '')
 
 
