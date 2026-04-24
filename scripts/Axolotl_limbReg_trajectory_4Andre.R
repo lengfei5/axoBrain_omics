@@ -35,6 +35,27 @@ functionDir = '/groups/tanaka/People/current/jiwang/projects/heart_regeneration/
 source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/functions_scRNAseq.R')
 source('/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts/functions_Visium.R')
 
+levels = c("MatLimb_0dpa_1", "Blastema_11dpa_1", 
+           "PLC_1dpd_1", "PLC_3dpd_1", "PLC_5dpd_0","PLC_5dpd_1",
+           "PLC_8dpd_1", "PLC_10dpd_1", "PLC_12dpd_1", "PLC_15dpd_1",
+           "PLC_8dpd_IL11treated_1", "PLC_8dpd_Dexatreated_1")
+cols = c('#054674', '#801517',
+         '#31C53F', '#2FF18B', '#28CECA','#4B4BF7',
+         '#25aff5', '#D4D915','#ff9a36','#B95FBB',
+         '#CCB1F1', '#AC8F14')
+
+#names(cols) = levels
+names(cols) = levels
+
+
+c('#F68282','#31C53F','#1FA195','#B95FBB','#D4D915',
+  '#28CECA', '#ff9a36', '#2FF18B',
+  "#054674", '#25aff5', "#4d7ea9", '#D4D915','#ff9a36','#B95FBB')
+c('3'='#F68282','15'='#31C53F','5'='#1FA195','1'='#B95FBB','13'='#D4D915',
+  '14'='#28CECA','9'='#ff9a36','8'='#2FF18B','11'='#aeadb3','6'='#faf4cf',
+  '2'='#CCB1F1','12'='#25aff5','7'='#A4DFF2','4'='#4B4BF7','16'='#AC8F14',
+  '10'='#E6C122')
+
 
 ########################################################
 ########################################################
@@ -899,28 +920,9 @@ ElbowPlot(aa, ndims = 50)
 aa <- RunUMAP(aa, reduction = "pca", dims = 1:50, n.neighbors = 50,  min.dist = 0.3)
 
 
-levels = c("MatLimb_0dpa_1", "Blastema_11dpa_1", 
-           "PLC_1dpd_1", "PLC_3dpd_1", "PLC_5dpd_0","PLC_5dpd_1",
-           "PLC_8dpd_1", "PLC_10dpd_1", "PLC_12dpd_1", "PLC_15dpd_1",
-           "PLC_8dpd_IL11treated_1", "PLC_8dpd_Dexatreated_1")
+
+
 aa$condition = factor(aa$condition, levels = levels)
-
-c('#F68282','#31C53F','#1FA195','#B95FBB','#D4D915',
-  '#28CECA', '#ff9a36', '#2FF18B',
-"#054674", '#25aff5', "#4d7ea9", '#D4D915','#ff9a36','#B95FBB')
-c('3'='#F68282','15'='#31C53F','5'='#1FA195','1'='#B95FBB','13'='#D4D915',
-  '14'='#28CECA','9'='#ff9a36','8'='#2FF18B','11'='#aeadb3','6'='#faf4cf',
-  '2'='#CCB1F1','12'='#25aff5','7'='#A4DFF2','4'='#4B4BF7','16'='#AC8F14',
-  '10'='#E6C122')
-
-
-cols = c('#054674', '#801517',
-         '#31C53F', '#2FF18B', '#28CECA','#4B4BF7',
-         '#25aff5', '#D4D915','#ff9a36','#B95FBB',
-         '#CCB1F1', '#AC8F14')
-
-#names(cols) = levels
-names(cols) = levels
 
 DimPlot(aa, group.by = 'condition', reduction = 'umap', cols = cols, label = TRUE, repel = TRUE)
 
@@ -935,14 +937,13 @@ saveRDS(aa, file = paste0(RdataDir,
 
 ########################################################
 ########################################################
-# Section :
+# Section IV: manually annot clusters and select CT cells
 # 
 ########################################################
 ########################################################
 
-
 ##########################################
-# manually annot clusters  
+# clusters and marker genes 
 ##########################################
 aa = readRDS(file = paste0(RdataDir, 
                            '/Andre_PLCscRNAseq_QCsfiltered_rmDFout.rds'))
@@ -996,69 +997,74 @@ ggsave(filename = paste0(resDir,
        width = 30, height = 40)
 
 
-p1= DimPlot(aa, group.by = 'celltype', label = TRUE, repel = TRUE)
-p2 = FeaturePlot(aa, features = c("CD68-AMEX60DD012740",  "APOE-AMEX60DD018143", "CD53-AMEX60DD008686",
-                                  "RAC2-AMEX60DD029329", "CORO1A-AMEX60DD028400"))
-
-p1/p2
-
-ggsave(filename = paste0(resDir, '/batch1Data_umap_axloltol_BL_immuneCell_markerGenes_v1.pdf'), 
-       width = 12, height = 18)
-
-
-aa$celltype = factor(aa$celltype, levels = c("Macrophages", 'Neutrophils', 'T cells', 'B cells', 
-                                             "Eosinophils/Killer cells", "Erythrocytes", "Schwann cells", 
-                                             "Endothelial cells", 'Epidermis', "Connective Tissue"))
-
-VlnPlot(aa, features = c("CD68-AMEX60DD012740", "APOE-AMEX60DD018143", "CD53-AMEX60DD008686", 
-                         "RAC2-AMEX60DD029329", "CORO1A-AMEX60DD028400"), group.by = 'celltype')
-
-ggsave(filename = paste0(resDir, '/batch1Data_umap_axloltol_BL_immuneCell_markerGenes_VlnPlot.pdf'), 
-       width = 12, height = 8)
-
-
 ##########################################
-# double check the macrophage and FB cell types markers 
+# just select the CT cells
 ##########################################
-markers =  c('Procr', 'Dpt', 'Pi16', 'Col1a2', 'Acta2', 'Lum', 'Col3a1', 'Col1a1', 'Mmp2', 'Pdgfra')
-markers = toupper(markers)
+features = c('Prrx1', 'Mfap5',  'Fbn1',   'Pdgfra', ## Li et al., 2020
+  'Procr', 'Dpt', 'Pi16', 'Col1a2', 'Acta2', 'Lum', 'Col3a1', 'Col1a1', 'Mmp2', 'Pdgfra', ## Nastya
+  'Col1a2', 'Vim', 'Fstl1', 'DDR2', 'Acta2', 'Postn', 'Tcf21', 'Pdgfra', 'Col3a1', 'Col1a1', 'Gsn', 
+  'Fbln2', 'Sparc', 'MMP2', 'Rspo1', 'Lum', 'Col8a1', # Elad
+  'Lum', 'Dpt', 'Postn', # whited paper
+  'Dpt', 'Pi16' # Sabine
+  )
+features = unique(toupper(features))
+features = features[!is.na(match(features, rownames(aa)))]
 
-mm = match(markers, ggs)
-mm = mm[which(!is.na(mm))]
+features = c("PRRX1", "PDGFRA", "DPT", "ACTA2", "LUM", "COL1A2", "MMP2", 'POSTN', "COL3A1")
 
-FeaturePlot(aa, features = rownames(aa)[mm]) 
+FeaturePlot(aa, features = features)
 
-ggsave(filename = paste0(resDir, '/batch1Data_umap_axloltol_BL_celltypes_FB_markers.pdf'), 
-       width = 16, height = 12)
-
-markers =  toupper(c('Adgre1', 'Cd68', 'Itgam', 'Csf1r', "H2-Ab1", 'Mertk',
-                     'Cd14',  'Cx3cr1', # pan macrophage
-                     'Tlr2', 'Nos2', 'Cd80', 'Cd86', 'Ifng', # M1 (pro-inflamatory)
-                     'Arg1', 'Cd163', 'Il4', 'Irf4' # M2 (anti-)
-))
-mm = match(markers, ggs)
-mm = mm[which(!is.na(mm))]
-FeaturePlot(aa, features = rownames(aa)[mm]) 
-
-ggsave(filename = paste0(resDir, '/batch1Data_umap_axloltol_BL_celltypes_macrophage_markers.pdf'), 
+ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_doubletFiltered", 
+                         "_clusters.30PCs.res0.5_CTfeatures.pdf"),
        width = 16, height = 12)
 
 
-markers =  toupper(c('Wnt3a', 'Wnt5a'))
-mm = match(markers, ggs)
-mm = mm[which(!is.na(mm))]
-FeaturePlot(aa, features = rownames(aa)[mm])
+VlnPlot(aa, features = "PRRX1")
+VlnPlot(aa, features = "DPT")
+VlnPlot(aa, features = "LUM")
 
-aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+## manually select CT clusters and subset it 
+aa$celltype = NA
 
-aa <- FindNeighbors(aa, dims = 1:20)
+aa$celltype[!is.na(match(aa$seurat_clusters, 
+                         c('0', '1', '5', '10', '13', '16',
+                           '4', '7', '6', '9', '12', '25', 
+                           '3', '8')))] = 'CT'
+
+DimPlot(aa, group.by = 'celltype')
+
+aa = subset(aa, subset = celltype == 'CT')
+
+p1 = DimPlot(aa, group.by = 'seurat_clusters')
+p2 = DimPlot(aa, group.by = 'condition', reduction = 'umap', cols = cols, 
+             label = TRUE, repel = TRUE)
+
+p1 + p2
+
+ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_doubletFiltered", 
+                         "_1roundCTselect.pdf"),
+       width = 18, height = 6)
+
+##########################################
+# 2rd round of CT cleaning 
+##########################################
+aa = NormalizeData(aa, normalization.method = "LogNormalize", scale.factor = 10000)
+aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
+
+aa <- ScaleData(aa)
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
+
+ElbowPlot(aa, ndims = 50)
+
+aa <- RunUMAP(aa, reduction = "pca", dims = 1:50, n.neighbors = 50,  min.dist = 0.3)
+
+
+DimPlot(aa, group.by = 'condition', reduction = 'umap', cols = cols, label = TRUE, repel = TRUE)
+
+ElbowPlot(aa, ndims = 50)
+
+aa <- FindNeighbors(aa, dims = 1:30)
 aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.5)
 
-DimPlot(aa, label = TRUE, repel = TRUE)
-
-ggsave(filename = paste0(resDir, '/batch1Data_umap_axloltol_BL_clusters.pdf'), 
-       width = 12, height = 8)
-
-
-
+DimPlot(aa,  reduction = 'umap',  label = TRUE, repel = TRUE)
 
