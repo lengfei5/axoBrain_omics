@@ -676,9 +676,10 @@ dev.off()
 # 
 ########################################################
 ########################################################
+
 resDir = paste0("../results/scRNAseq_axolotle_PrimaryLimbCells", version.analysis, '/')
 if(!dir.exists(resDir)) dir.create(resDir)
-
+annot = readRDS(file = paste0(RdataDir, 'primary_curated_260226_geneAnnotation.withChrM.rds'))
 
 ##########################################
 # process the matched gene annotation 
@@ -722,11 +723,12 @@ if(processing_annot){
   
 }
 
+
 ##########################################
 # import and overview of Andre's data
 ##########################################
 aa = readRDS(file = paste0("/groups/tanaka/People/current/Andre/260314_FibroblastActivation.RDS"))
-annot = readRDS(file = paste0(RdataDir, 'primary_curated_250329_geneAnnotation.withChrM.rds'))
+
 
 DefaultAssay(aa) = 'GenesExons'
 
@@ -812,15 +814,17 @@ saveRDS(aa, file = paste0(RdataDir, 'Andre_PLCscRNAseq_QCsfiltered.rds'))
 ##########################################
 # identify doublet
 ##########################################
-#aa = readRDS(file = paste0(RdataDir, 'Andre_PLCscRNAseq_QCsfiltered.rds'))
 library(DoubletFinder)
+
+aa = readRDS(file = paste0(RdataDir, 'Andre_PLCscRNAseq_QCsfiltered.rds'))
+
 aa$DF_out = NA
 
 #aa$condition = factor(aa$condition)
 Idents(aa) = aa$condition
 cc = unique(aa$condition)
 
-for(n in 1:length(cc))
+for(n in 2:length(cc))
 {
   # n = 1
   cat(n, '-----', as.character(cc[n]), '\n')
@@ -835,9 +839,9 @@ for(n in 1:length(cc))
   
   subs <- RunUMAP(subs, dims = 1:30)
   
-  sweep.res.list_nsclc <- paramSweep(subs, PCs = 1:30)
-  sweep.stats_nsclc <- summarizeSweep(sweep.res.list_nsclc, GT = FALSE)
-  bcmvn_nsclc <- find.pK(sweep.stats_nsclc)
+  sweep.res.list_nsclc <- DoubletFinder::paramSweep(subs, PCs = 1:30)
+  sweep.stats_nsclc <- DoubletFinder::summarizeSweep(sweep.res.list_nsclc, GT = FALSE)
+  bcmvn_nsclc <- DoubletFinder::find.pK(sweep.stats_nsclc)
   
   pK <- bcmvn_nsclc %>% # select the pK that corresponds to max bcmvn to optimize doublet detection
     filter(BCmetric == max(BCmetric)) %>%
@@ -874,6 +878,186 @@ DimPlot(aa, group.by = 'DF_out')
 
 saveRDS(aa, file = paste0(RdataDir, 
                           '/Andre_PLCscRNAseq_QCsfiltered_DFout.rds'))
+
+
+##########################################
+# clean the doublet
+##########################################
+aa = readRDS(file = paste0(RdataDir, 
+                           '/Andre_PLCscRNAseq_QCsfiltered_DFout.rds'))
+
+aa = subset(aa, subset = DF_out == "Singlet")
+
+aa = NormalizeData(aa, normalization.method = "LogNormalize", scale.factor = 10000)
+aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
+
+aa <- ScaleData(aa)
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
+
+ElbowPlot(aa, ndims = 50)
+
+aa <- RunUMAP(aa, reduction = "pca", dims = 1:50, n.neighbors = 50,  min.dist = 0.3)
+
+
+levels = c("MatLimb_0dpa_1", "Blastema_11dpa_1", 
+           "PLC_1dpd_1", "PLC_3dpd_1", "PLC_5dpd_0","PLC_5dpd_1",
+           "PLC_8dpd_1", "PLC_10dpd_1", "PLC_12dpd_1", "PLC_15dpd_1",
+           "PLC_8dpd_IL11treated_1", "PLC_8dpd_Dexatreated_1")
+aa$condition = factor(aa$condition, levels = levels)
+
+c('#F68282','#31C53F','#1FA195','#B95FBB','#D4D915',
+  '#28CECA', '#ff9a36', '#2FF18B',
+"#054674", '#25aff5', "#4d7ea9", '#D4D915','#ff9a36','#B95FBB')
+c('3'='#F68282','15'='#31C53F','5'='#1FA195','1'='#B95FBB','13'='#D4D915',
+  '14'='#28CECA','9'='#ff9a36','8'='#2FF18B','11'='#aeadb3','6'='#faf4cf',
+  '2'='#CCB1F1','12'='#25aff5','7'='#A4DFF2','4'='#4B4BF7','16'='#AC8F14',
+  '10'='#E6C122')
+
+
+cols = c('#054674', '#801517',
+         '#31C53F', '#2FF18B', '#28CECA','#4B4BF7',
+         '#25aff5', '#D4D915','#ff9a36','#B95FBB',
+         '#CCB1F1', '#AC8F14')
+
+#names(cols) = levels
+names(cols) = levels
+
+DimPlot(aa, group.by = 'condition', reduction = 'umap', cols = cols, label = TRUE, repel = TRUE)
+
+
+ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_doubletFiltered_umap.pdf"),
+       width = 12, height = 8)
+
+FeaturePlot(aa, features = 'nFeature_RNA', reduction = 'umap', label = TRUE, repel = TRUE)
+
+saveRDS(aa, file = paste0(RdataDir, 
+                          '/Andre_PLCscRNAseq_QCsfiltered_rmDFout.rds'))
+
+########################################################
+########################################################
+# Section :
+# 
+########################################################
+########################################################
+
+
+##########################################
+# manually annot clusters  
+##########################################
+aa = readRDS(file = paste0(RdataDir, 
+                           '/Andre_PLCscRNAseq_QCsfiltered_rmDFout.rds'))
+
+ElbowPlot(aa, ndims = 50)
+
+aa <- FindNeighbors(aa, dims = 1:30)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.5)
+
+DimPlot(aa,  reduction = 'umap',  label = TRUE, repel = TRUE)
+
+ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_doubletFiltered_clusters_30PCs.res0.5.pdf"),
+       width = 12, height = 8)
+
+saveRDS(aa, file = paste0(RdataDir,
+                          '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_30PCs.res0.5Clusters.rds'))
+
+
+
+markers = FindAllMarkers(aa, only.pos = TRUE, min.pct = 0.2, logfc.threshold = 0.5)
+
+saveRDS(markers, file = paste0(RdataDir, 
+                               'Andre_PLCscRNAseq_QCsfiltered_rmDFout_markers_30PCs.res0.5.rds'))
+
+
+## reload the calculated clusters and markers
+aa = readRDS(file = paste0(RdataDir,
+                                  '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_30PCs.res0.5Clusters.rds'))
+
+markers = readRDS(file = paste0(RdataDir, 
+                          'Andre_PLCscRNAseq_QCsfiltered_rmDFout_markers_30PCs.res0.5.rds'))
+
+
+cat(length(unique(markers$gene)), ' markers found in ax\n')
+
+markers %>%
+  group_by(cluster) %>%
+  dplyr::filter(avg_log2FC > 1.0) %>%
+  slice_head(n = 10) %>%
+  ungroup() -> top10
+
+#ggs = top10$gene[which(top10$cluster == 'immune_cells')]
+#ggs = ggs[grep('^AME|^LOC', ggs, invert = TRUE)]
+#ggs = ggs[order(ggs)]
+xx = subset(aa, downsample = 200)
+
+DoHeatmap(xx, features = top10$gene) + NoLegend()
+
+ggsave(filename = paste0(resDir, 
+                         '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_markers_30PCs.res0.5_heatmap.pdf'), 
+       width = 30, height = 40)
+
+
+p1= DimPlot(aa, group.by = 'celltype', label = TRUE, repel = TRUE)
+p2 = FeaturePlot(aa, features = c("CD68-AMEX60DD012740",  "APOE-AMEX60DD018143", "CD53-AMEX60DD008686",
+                                  "RAC2-AMEX60DD029329", "CORO1A-AMEX60DD028400"))
+
+p1/p2
+
+ggsave(filename = paste0(resDir, '/batch1Data_umap_axloltol_BL_immuneCell_markerGenes_v1.pdf'), 
+       width = 12, height = 18)
+
+
+aa$celltype = factor(aa$celltype, levels = c("Macrophages", 'Neutrophils', 'T cells', 'B cells', 
+                                             "Eosinophils/Killer cells", "Erythrocytes", "Schwann cells", 
+                                             "Endothelial cells", 'Epidermis', "Connective Tissue"))
+
+VlnPlot(aa, features = c("CD68-AMEX60DD012740", "APOE-AMEX60DD018143", "CD53-AMEX60DD008686", 
+                         "RAC2-AMEX60DD029329", "CORO1A-AMEX60DD028400"), group.by = 'celltype')
+
+ggsave(filename = paste0(resDir, '/batch1Data_umap_axloltol_BL_immuneCell_markerGenes_VlnPlot.pdf'), 
+       width = 12, height = 8)
+
+
+##########################################
+# double check the macrophage and FB cell types markers 
+##########################################
+markers =  c('Procr', 'Dpt', 'Pi16', 'Col1a2', 'Acta2', 'Lum', 'Col3a1', 'Col1a1', 'Mmp2', 'Pdgfra')
+markers = toupper(markers)
+
+mm = match(markers, ggs)
+mm = mm[which(!is.na(mm))]
+
+FeaturePlot(aa, features = rownames(aa)[mm]) 
+
+ggsave(filename = paste0(resDir, '/batch1Data_umap_axloltol_BL_celltypes_FB_markers.pdf'), 
+       width = 16, height = 12)
+
+markers =  toupper(c('Adgre1', 'Cd68', 'Itgam', 'Csf1r', "H2-Ab1", 'Mertk',
+                     'Cd14',  'Cx3cr1', # pan macrophage
+                     'Tlr2', 'Nos2', 'Cd80', 'Cd86', 'Ifng', # M1 (pro-inflamatory)
+                     'Arg1', 'Cd163', 'Il4', 'Irf4' # M2 (anti-)
+))
+mm = match(markers, ggs)
+mm = mm[which(!is.na(mm))]
+FeaturePlot(aa, features = rownames(aa)[mm]) 
+
+ggsave(filename = paste0(resDir, '/batch1Data_umap_axloltol_BL_celltypes_macrophage_markers.pdf'), 
+       width = 16, height = 12)
+
+
+markers =  toupper(c('Wnt3a', 'Wnt5a'))
+mm = match(markers, ggs)
+mm = mm[which(!is.na(mm))]
+FeaturePlot(aa, features = rownames(aa)[mm])
+
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = FALSE)
+
+aa <- FindNeighbors(aa, dims = 1:20)
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.5)
+
+DimPlot(aa, label = TRUE, repel = TRUE)
+
+ggsave(filename = paste0(resDir, '/batch1Data_umap_axloltol_BL_clusters.pdf'), 
+       width = 12, height = 8)
 
 
 
