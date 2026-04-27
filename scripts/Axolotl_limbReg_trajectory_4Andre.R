@@ -1066,7 +1066,7 @@ saveRDS(aa, file = paste0(RdataDir,
 
 
 ##########################################
-# downsample 5k cells for each condition and 2rd round of CT cleaning 
+# downsample 3k cells for each condition and 2rd round of CT cleaning 
 ##########################################
 aa = readRDS(file = paste0(RdataDir,
                            '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.rds'))
@@ -1076,7 +1076,7 @@ aa = readRDS(file = paste0(RdataDir,
 
 #aa$condition = droplevels(aa$condition)
 Idents(aa) = aa$condition
-aa = subset(x = aa, downsample = 5000)
+aa = subset(x = aa, downsample = 3000)
 
 aa = NormalizeData(aa, normalization.method = "LogNormalize", scale.factor = 10000)
 aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
@@ -1098,8 +1098,7 @@ aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.5)
 
 DimPlot(aa,  reduction = 'umap',  label = TRUE, repel = TRUE)
 
-saveRDS(aa, file = paste0(RdataDir,
-                          '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled.rds'))
+
 
 p1 = DimPlot(aa,  reduction = 'umap', cols = cols,
              group.by = 'condition', label = TRUE, repel = TRUE)
@@ -1111,12 +1110,14 @@ ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_rmDFout_CTselected.downsa
                          ".pdf"),
        width = 18, height = 6)
 
+saveRDS(aa, file = paste0(RdataDir,
+                          '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled.rds'))
 
-markers = FindAllMarkers(aa, only.pos = TRUE, min.pct = 0.1, logfc.threshold = 0.5)
+
+markers = FindAllMarkers(aa, only.pos = TRUE, min.pct = 0.2, logfc.threshold = 0.5)
 
 saveRDS(markers, file = paste0(RdataDir, 
                                'Andre_PLCscRNAseq_QCsfiltered_CTselected.downsampled.rds'))
-
 
 ## reload the calculated clusters and markers
 cat(length(unique(markers$gene)), ' markers found in ax\n')
@@ -1152,16 +1153,22 @@ ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_doubletFiltered",
                          "_CTselected_lowSequencingClusters.pdf"),
        width = 12, height = 8)
 
+VlnPlot(aa, features = 'nFeature_RNA', group.by = 'condition', pt.size = 0)
 
-aa = subset(aa, cells = colnames(aa)[which(aa$seurat_clusters != '19' &
-                                             aa$seurat_clusters != '20' &
+ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_doubletFiltered", 
+                         "_CTselected_nCount_RNA.pdf"),
+       width = 12, height = 8)
+
+
+
+aa = subset(aa, cells = colnames(aa)[which(aa$seurat_clusters != '17' &
                                              aa$seurat_clusters != '18')])
 
-aa = subset(aa, cells = colnames(aa)[which(aa$condition != "PLC_5dpd_0" &
-                                             aa$condition != "PLC_10dpd_1" &
-                                             aa$condition != "PLC_12dpd_1")])
+#aa = subset(aa, cells = colnames(aa)[which(aa$condition != "PLC_5dpd_0" &
+#                                             aa$condition != "PLC_10dpd_1" &
+#                                             aa$condition != "PLC_12dpd_1")])
 
-aa$condition = droplevels(aa$condition)
+#aa$condition = droplevels(aa$condition)
 
 aa = NormalizeData(aa, normalization.method = "LogNormalize", scale.factor = 10000)
 aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
@@ -1173,7 +1180,10 @@ ElbowPlot(aa, ndims = 50)
 
 aa <- RunUMAP(aa, reduction = "pca", dims = 1:30, n.neighbors = 50,  min.dist = 0.3)
 
-DimPlot(aa,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE)
+DimPlot(aa,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
+
+ggsave(paste0(resDir, 'Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled_clean.pdf'), 
+       width = 12, height = 8)
 
 saveRDS(aa, file = paste0(RdataDir,
                           '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled_clean.rds'))
@@ -1182,21 +1192,85 @@ saveRDS(aa, file = paste0(RdataDir,
 ##########################################
 # test batch correction
 ##########################################
+aa = readRDS(paste0(RdataDir,
+                    '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled_clean.rds'))
+
 functionDir = '/groups/tanaka/People/current/jiwang/projects/heart_regeneration/scripts'
 source(paste0(functionDir, '/functions_dataIntegration.R'))
 
 aa$batch = 'PLC'
 aa$batch[aa$condition == 'MatLimb_0dpa_1' | aa$condition == "Blastema_11dpa_1"] = 'blastema' 
 
-
+aa$batch = factor(aa$batch, levels = c('blastema', 'PLC'))
 
 xx = IntegrateData_Seurat_RPCA(seuratObj = aa, group.by = 'batch', nfeatures = 3000)
 
 # Visualization
+ElbowPlot(xx, ndims = 50)
+xx = RunUMAP(xx, reduction = "pca", dims = 1:30, n.neighbors = 50, 
+             min.dist = 0.3) 
 DimPlot(xx, reduction = "umap", group.by = "condition", label = TRUE,
-        repel = TRUE, raster=FALSE, cols = cols) 
+        repel = TRUE, raster=FALSE, cols = cols, label.size = 5) 
 
-ggsave(paste0(outDir, '/Integration_mNT_celltypes_noref.batchcorrection_3000HVGs.pdf'), 
-       width = 16, height = 12)
+ggsave(paste0(resDir, '/Integration_PLC_Blastema_SeuratRPCA_3000HVGs.pdf'), 
+       width = 12, height = 8)
+
+
+xx = IntegrateData_Seurat_CCA(seuratObj = aa, group.by = 'batch', nfeatures = 3000)
+
+# Visualization
+ElbowPlot(xx, ndims = 50)
+xx = RunUMAP(xx, reduction = "pca", dims = 1:30, n.neighbors = 50, 
+             min.dist = 0.3) 
+DimPlot(xx, reduction = "umap", group.by = "condition", label = TRUE,
+        repel = TRUE, raster=FALSE, cols = cols, label.size = 5) 
+
+ggsave(paste0(resDir, '/Integration_PLC_Blastema_SeuratRPCA_3000HVGs.pdf'), 
+       width = 12, height = 8)
+
+
+xx = IntegrateData_Seurat_CCA(seuratObj = aa, group.by = 'batch', nfeatures = 3000)
+
+# Visualization
+ElbowPlot(xx, ndims = 50)
+xx = RunUMAP(xx, reduction = "pca", dims = 1:30, n.neighbors = 30, 
+             min.dist = 0.3) 
+DimPlot(xx, reduction = "umap", group.by = "condition", label = TRUE,
+        repel = TRUE, raster=FALSE, cols = cols, label.size = 5) 
+
+ggsave(paste0(resDir, '/Integration_PLC_Blastema_SeuratCCA_3000HVGs.pdf'), 
+       width = 12, height = 8)
+
+
+#Run harmony to correct for chemistry
+library(harmony)
+tic()
+xx<- RunHarmony(aa, group.by.vars = 'batch', 
+                            
+                            #nclust = 10, 
+                            max.iter.harmony = 10, 
+                            #epsilon.harmony = -Inf,
+                epsilon.harmony = 0.0001,
+                            verbose = TRUE,
+                            #sreference_values = 'blastema',
+                            plot_convergence = TRUE)
+toc()
+
+#Identify the highest contributing PCs
+ElbowPlot(xx, ndims = 50)
+npcs = 30
+xx <- RunUMAP(xx, reduction = 'harmony', dims = 1:npcs, 
+                         reduction.name = 'umap_harmony')
+
+DimPlot(xx, reduction = "umap_harmony", label = TRUE, group.by = 'condition',
+        cols = cols)
+
+ggsave(paste0(resDir, '/Integration_PLC_Blastema_RunHarmony_3000HVGs.pdf'), 
+       width = 12, height = 8)
+
+
+
+
+
 
 
