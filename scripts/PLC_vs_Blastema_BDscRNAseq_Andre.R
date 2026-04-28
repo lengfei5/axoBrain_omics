@@ -7,7 +7,6 @@
 # Date of creation: Tue Mar 31 11:49:38 2026
 ##########################################################################
 ##########################################################################
-
 rm(list = ls())
 
 library(Seurat)
@@ -656,6 +655,13 @@ aa$batch[aa$condition == 'MatLimb_0dpa_1' | aa$condition == "Blastema_11dpa_1"] 
 
 aa$batch = factor(aa$batch, levels = c('blastema', 'PLC'))
 
+DimPlot(aa, group.by = 'condition', label = TRUE, repel = TRUE)
+
+aa = subset(aa, cell= colnames(aa)[which(aa$condition != 'PLC_5dpd_1' & 
+                                           aa$condition != 'PLC_8dpd_IL11treated_1' &
+                                           aa$condition != 'PLC_8dpd_Dexatreated_1')])
+
+
 Test_RIMA_mapping = FALSE
 if(Test_RIMA_mapping){
   library(RIMA)
@@ -670,7 +676,8 @@ if(Test_RIMA_mapping){
   bl <- ScaleData(bl)
   bl <- RunPCA(bl, features = VariableFeatures(object = bl), verbose = FALSE, weight.by.var = TRUE)
   bl <- RunUMAP(bl, reduction = "pca", dims = 1:30, n.neighbors = 30,  min.dist = 0.3)
- 
+  DimPlot(bl,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
+  
   bl <- FindNeighbors(bl, dims = 1:30)
   bl <- FindClusters(bl, verbose = FALSE, algorithm = 3, resolution = 0.5)
   p1 = DimPlot(bl,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
@@ -678,11 +685,17 @@ if(Test_RIMA_mapping){
   
   p1 + p2
   
+  ggsave(paste0(resDir, '/Milo_blastema_umapEmbedding.pdf'), 
+         width = 16, height = 8)
+  
+  
   plc = NormalizeData(plc, normalization.method = "LogNormalize", scale.factor = 10000)
   plc <- FindVariableFeatures(plc, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
   plc <- ScaleData(plc)
   plc <- RunPCA(plc, features = VariableFeatures(object = plc), verbose = FALSE, weight.by.var = TRUE)
-  plc <- RunUMAP(plc, reduction = "pca", dims = 1:30, n.neighbors = 30,  min.dist = 0.3)
+  plc <- RunUMAP(plc, reduction = "pca", dims = 1:30, n.neighbors = 50,  min.dist = 0.3)
+  DimPlot(plc,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
+  
   plc <- FindNeighbors(plc, dims = 1:30)
   plc <- FindClusters(plc, verbose = FALSE, algorithm = 3, resolution = 0.5)
   p1 = DimPlot(plc,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
@@ -690,6 +703,8 @@ if(Test_RIMA_mapping){
   
   p1 + p2
   
+  ggsave(paste0(resDir, '/Milo_PLC_umapEmbedding.pdf'), 
+         width = 16, height = 8)
   
   sce_bl = as.SingleCellExperiment(bl)
   sce_plc = as.SingleCellExperiment(plc) 
@@ -699,16 +714,16 @@ if(Test_RIMA_mapping){
   #sce_rabbit <- RIMA::sce_rabbit_gastrulation
   
   # Step 0: Define the neighbourhoods (here with Milo's implementation, but could use others, e.g. metacells)
-  define_neighbourhoods <- function(sce, prop_seeds, knn=10, reduced.dim="PCA"){
-    n_components <- ncol(reducedDim(sce, reduced.dim))  # use all available PCs
+  define_neighbourhoods <- function(sce, prop_seeds, knn=10, reduced.dim="PCA", n_components = 30){
+    #n_components <- ncol(reducedDim(sce, reduced.dim))  # use all available PCs
     mi <- Milo(sce)
     mi <- miloR::buildGraph(mi, k = knn, d = n_components, reduced.dim = "PCA")
     mi <- miloR::makeNhoods(mi, prop = prop_seeds, k = knn, d=n_components, refined = TRUE)
     return(mi)
   }
   
-  mi_bl <- define_neighbourhoods(sce_bl, prop_seeds = 0.02, knn = 10)
-  mi_plc <- define_neighbourhoods(sce_plc, prop_seeds = 0.02, knn = 10)
+  mi_bl <- define_neighbourhoods(sce_bl, prop_seeds = 0.05, knn = 10, n_components = 30)
+  mi_plc <- define_neighbourhoods(sce_plc, prop_seeds = 0.05, knn = 10, n_components = 30)
   
   # Step 1: Preprocess the Milo objects
   milos <- preprocess_milos(mi_bl, mi_plc)
@@ -721,23 +736,83 @@ if(Test_RIMA_mapping){
     milos, dt_sims,
     n_scrambles = 10,
     col_scramble_label = 'seurat_clusters',
-    direction = "lr"
+    direction = "b"
   )
   
+  saveRDS(dt_sims_sig, file = paste0(RdataDir, '/dt_sims_sig.rds'))
+  
   # Step 4: Match significant nhood-nhood connections
+  #dt_sims_sig$is_significant[which(dt_sims_sig$pval < 0.01)] = TRUE
   dt_match <- match_nhoods(dt_sims_sig[is_significant == TRUE])
+  #dt_match <- match_nhoods(dt_sims_sig[pval < 0.01])
+  
+  dt_sims_sig2 = dt_sims_sig
+  dt_sims_sig2$is_significant[which(dt_sims_sig2$pval_combined < 0.05)] = TRUE
+  dt_match2 <- match_nhoods(dt_sims_sig2[is_significant == TRUE])
   
   # Step 5: Visualize and analyze results
-  plot_matches_embed(milos, dt_match, cols_color = c("condition", "condition"), dimred="PCA")
+  dt_cols = data.frame(cols_color = names(cols), color = cols)
   
-  plot_matches_map(milos, dt_match, cols_label = c("celltype", "stage"))
+  plot_matches_embed(milos, dt_match, 
+                     cols_color = c("condition", "condition"), 
+                     dimred="UMAP", 
+                     #dt_palette = dt_cols, 
+                     args_process_coordinates = list(list(angle = 225, shift = c(0, 0)), 
+                                                     list(angle = 45, shift= c(10, 0))),
+                     linewd = 0.2) 
+  ggsave(paste0(resDir, '/Milo_Blatema_PLC_correlationMapping.pdf'), 
+         width = 8, height = 5)
+  
+  
+  #c("#31C53F" "#B95FBB")
+  #plot_matches_map(milos, dt_match, cols_label = c("seurat_clusters", "condition"))
   
   # Example downstream analysis: Find the 3 genes with the most conserved expression across matches
-  dt_cope <- calculate_cope(milos, dt_match, genes = NULL)
-  dt_cope <- dt_cope[order(dt_cope$cope, na.last = FALSE), ]
-  plot_paired_expression(milos, dt_match, genes = tail(dt_cope$gene, 3))
-  
-  
+  #dt_cope <- calculate_cope(milos, dt_match, genes = NULL)
+  #dt_cope <- dt_cope[order(dt_cope$cope, na.last = FALSE), ]
+  #plot_paired_expression(milos, dt_match, genes = tail(dt_cope$gene, 3))
   
 }
+
+##########################################
+# try to figure out the main conserved features between vivo and vitro
+##########################################
+aa = readRDS(paste0(RdataDir,
+                    '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled_clean.rds'))
+
+
+aa$batch = 'PLC'
+aa$batch[aa$condition == 'MatLimb_0dpa_1' | aa$condition == "Blastema_11dpa_1"] = 'blastema' 
+
+aa$batch = factor(aa$batch, levels = c('blastema', 'PLC'))
+
+DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE)
+
+Idents(aa) = aa$condition
+
+ntop = 1000
+markers = FindMarkers(aa, ident.1 = 'Blastema_11dpa_1', ident.2 = "MatLimb_0dpa_1",
+                      logfc.threshold = 0.2,
+                      test.use = "wilcox",
+                      min.pct = 0.05,
+                      only.pos = FALSE)
+
+ggs = rownames(markers)[1:ntop]
+
+markers = FindMarkers(aa, ident.1 = 'PLC_8dpd_1', ident.2 = "PLC_1dpd_1",
+                      logfc.threshold = 0.2,
+                      test.use = "wilcox",
+                      min.pct = 0.05,
+                      only.pos = FALSE)
+
+ggs = c(ggs, rownames(markers)[1:ntop])
+
+pseudo_aa <- AverageExpression(aa, assays = "RNA", features = ggs,
+                               group.by = c('condition'), 
+                               layer = 'data'
+                               )
+pseudo_aa = pseudo_aa$RNA
+
+colnames(pseudo_aa) = levels
+
 
