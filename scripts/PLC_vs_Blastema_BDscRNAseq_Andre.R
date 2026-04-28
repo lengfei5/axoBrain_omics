@@ -1,3 +1,13 @@
+##########################################################################
+##########################################################################
+# Project: Andre's cultured cell trajectory 
+# Script purpose:
+# Usage example: 
+# Author: Jingkui Wang (jingkui.wang@imp.ac.at)
+# Date of creation: Tue Mar 31 11:49:38 2026
+##########################################################################
+##########################################################################
+
 rm(list = ls())
 
 library(Seurat)
@@ -52,10 +62,9 @@ c('3'='#F68282','15'='#31C53F','5'='#1FA195','1'='#B95FBB','13'='#D4D915',
   '10'='#E6C122')
 
 
-
 ########################################################
 ########################################################
-# Section III: test Andre's vitro data 
+# Section I: test Andre's vitro data 
 # 
 ########################################################
 ########################################################
@@ -299,7 +308,7 @@ saveRDS(aa, file = paste0(RdataDir,
 
 ########################################################
 ########################################################
-# Section IV: manually annot clusters and select CT cells
+# Section II: manually annot clusters and select CT cells
 # 
 ########################################################
 ########################################################
@@ -546,6 +555,12 @@ ggsave(paste0(resDir, 'Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsamp
 saveRDS(aa, file = paste0(RdataDir,
                           '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled_clean.rds'))
 
+########################################################
+########################################################
+# Section III: globally compare vivo with vitro samples
+# 
+########################################################
+########################################################
 
 ##########################################
 # test batch correction
@@ -628,7 +643,101 @@ ggsave(paste0(resDir, '/Integration_PLC_Blastema_RunHarmony_3000HVGs.pdf'),
 
 
 
+##########################################
+# Test mapping between vivo and vitro
+# orignal code from https://github.com/ma-jacques/RIMA
+# and run_compare_nhoods.R in heart_regeneration folder
+##########################################
+aa = readRDS(paste0(RdataDir,
+                    '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled_clean.rds'))
 
+aa$batch = 'PLC'
+aa$batch[aa$condition == 'MatLimb_0dpa_1' | aa$condition == "Blastema_11dpa_1"] = 'blastema' 
 
+aa$batch = factor(aa$batch, levels = c('blastema', 'PLC'))
 
+Test_RIMA_mapping = FALSE
+if(Test_RIMA_mapping){
+  library(RIMA)
+  library(miloR)
+  library(SingleCellExperiment)
+  
+  bl = subset(aa, subset = batch == 'blastema') 
+  plc = subset(aa, subset = batch == 'PLC') 
+  
+  bl = NormalizeData(bl, normalization.method = "LogNormalize", scale.factor = 10000)
+  bl <- FindVariableFeatures(bl, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+  bl <- ScaleData(bl)
+  bl <- RunPCA(bl, features = VariableFeatures(object = bl), verbose = FALSE, weight.by.var = TRUE)
+  bl <- RunUMAP(bl, reduction = "pca", dims = 1:30, n.neighbors = 30,  min.dist = 0.3)
+ 
+  bl <- FindNeighbors(bl, dims = 1:30)
+  bl <- FindClusters(bl, verbose = FALSE, algorithm = 3, resolution = 0.5)
+  p1 = DimPlot(bl,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
+  p2 = DimPlot(bl,  reduction = 'umap', label = TRUE, repel = TRUE)
+  
+  p1 + p2
+  
+  plc = NormalizeData(plc, normalization.method = "LogNormalize", scale.factor = 10000)
+  plc <- FindVariableFeatures(plc, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+  plc <- ScaleData(plc)
+  plc <- RunPCA(plc, features = VariableFeatures(object = plc), verbose = FALSE, weight.by.var = TRUE)
+  plc <- RunUMAP(plc, reduction = "pca", dims = 1:30, n.neighbors = 30,  min.dist = 0.3)
+  plc <- FindNeighbors(plc, dims = 1:30)
+  plc <- FindClusters(plc, verbose = FALSE, algorithm = 3, resolution = 0.5)
+  p1 = DimPlot(plc,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
+  p2 = DimPlot(plc,  reduction = 'umap', label = TRUE, repel = TRUE)
+  
+  p1 + p2
+  
+  
+  sce_bl = as.SingleCellExperiment(bl)
+  sce_plc = as.SingleCellExperiment(plc) 
+  
+  # Here we load the built-in example datasets of mouse and rabbit gastrulation
+  #sce_mouse <- RIMA::sce_mouse_gastrulation
+  #sce_rabbit <- RIMA::sce_rabbit_gastrulation
+  
+  # Step 0: Define the neighbourhoods (here with Milo's implementation, but could use others, e.g. metacells)
+  define_neighbourhoods <- function(sce, prop_seeds, knn=10, reduced.dim="PCA"){
+    n_components <- ncol(reducedDim(sce, reduced.dim))  # use all available PCs
+    mi <- Milo(sce)
+    mi <- miloR::buildGraph(mi, k = knn, d = n_components, reduced.dim = "PCA")
+    mi <- miloR::makeNhoods(mi, prop = prop_seeds, k = knn, d=n_components, refined = TRUE)
+    return(mi)
+  }
+  
+  mi_bl <- define_neighbourhoods(sce_bl, prop_seeds = 0.02, knn = 10)
+  mi_plc <- define_neighbourhoods(sce_plc, prop_seeds = 0.02, knn = 10)
+  
+  # Step 1: Preprocess the Milo objects
+  milos <- preprocess_milos(mi_bl, mi_plc)
+  
+  # Step 2: Calculate neighbourhood similarities
+  dt_sims <- calculate_similarities(milos, method = "spearman")
+  
+  # Step 3: Assess statistical significance of nhood-nhood similarity
+  dt_sims_sig <- calculate_nhoodnhood_significance(
+    milos, dt_sims,
+    n_scrambles = 10,
+    col_scramble_label = 'seurat_clusters',
+    direction = "lr"
+  )
+  
+  # Step 4: Match significant nhood-nhood connections
+  dt_match <- match_nhoods(dt_sims_sig[is_significant == TRUE])
+  
+  # Step 5: Visualize and analyze results
+  plot_matches_embed(milos, dt_match, cols_color = c("condition", "condition"), dimred="PCA")
+  
+  plot_matches_map(milos, dt_match, cols_label = c("celltype", "stage"))
+  
+  # Example downstream analysis: Find the 3 genes with the most conserved expression across matches
+  dt_cope <- calculate_cope(milos, dt_match, genes = NULL)
+  dt_cope <- dt_cope[order(dt_cope$cope, na.last = FALSE), ]
+  plot_paired_expression(milos, dt_match, genes = tail(dt_cope$gene, 3))
+  
+  
+  
+}
 
