@@ -790,7 +790,7 @@ DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE)
 
 Idents(aa) = aa$condition
 
-ntop = 1000
+ntop = 500
 markers = FindMarkers(aa, ident.1 = 'Blastema_11dpa_1', ident.2 = "MatLimb_0dpa_1",
                       logfc.threshold = 0.2,
                       test.use = "wilcox",
@@ -806,13 +806,73 @@ markers = FindMarkers(aa, ident.1 = 'PLC_8dpd_1', ident.2 = "PLC_1dpd_1",
                       only.pos = FALSE)
 
 ggs = c(ggs, rownames(markers)[1:ntop])
+ggs = unique(ggs)
 
 pseudo_aa <- AverageExpression(aa, assays = "RNA", features = ggs,
                                group.by = c('condition'), 
                                layer = 'data'
                                )
-pseudo_aa = pseudo_aa$RNA
+pseudo_aa = data.frame(pseudo_aa$RNA)
+#pseudo_aa = data.frame(pseudo_aa)
 
-colnames(pseudo_aa) = levels
+library("pheatmap")
+library("dendextend")
+
+data_subset <- as.matrix(pseudo_aa)
+
+cal_z_score <- function(x){
+  (x - mean(x)) / sd(x)
+}
+
+data_subset_norm <- t(apply(data_subset, 1, cal_z_score))
+# my_hclust_gene <- hclust(dist(data_subset), method = "complete")
+# my_gene_col <- cutree(tree = as.dendrogram(my_hclust_gene), k = 2)
+# my_gene_col <- data.frame(cluster = ifelse(test = my_gene_col == 1, yes = "cluster 1", no = "cluster 2"))
+# set.seed(1984)
+# #my_random <- as.factor(sample(x = 1:2, size = nrow(my_gene_col), replace = TRUE))
+# my_gene_col$random <- my_random
+# my_sample_col <- data.frame(sample = rep(c("tumour", "normal"), c(4,2)))
+# row.names(my_sample_col) <- colnames(data_subset)
+
+#cols = colorRampPalette(c("navy", "white", "red3"))(16)
+cols = colorRampPalette(rev((brewer.pal(n = 8, name ="BrBG"))))(6)
+
+
+pheatmap(data_subset_norm, 
+         cluster_rows = TRUE,
+         cluster_cols = FALSE,
+         clustering_distance_rows = "euclidean",
+         clustering_method = "complete",
+         cutree_rows = 10,
+         color = cols,
+         gaps_col = c(2, 10),
+         show_rownames = FALSE,
+         filename = paste0(resDir, '/drivingGenes_vivo_vs_vitro.pdf'), 
+         width = 5, height = 12
+         
+                       #annotation_row = my_gene_col,
+                       #annotation_col = my_sample_col,
+                       #cutree_rows = 2,
+                       #cutree_cols = 2)
+)
+
+pheatmap(data_subset_norm, 
+         cluster_rows = TRUE,
+         cluster_cols = FALSE,
+         clustering_distance_rows = "euclidean",
+         clustering_method = "complete",
+         cutree_rows = 10,
+         color = cols,
+         gaps_col = c(2, 10),
+         show_rownames = TRUE,
+         fontsize = 2, 
+         filename = paste0(resDir, '/drivingGenes_vivo_vs_vitro_withGeneNames.pdf'), 
+         width = 8, height = 30
+         
+         #annotation_row = my_gene_col,
+         #annotation_col = my_sample_col,
+         #cutree_rows = 2,
+         #cutree_cols = 2)
+)
 
 
