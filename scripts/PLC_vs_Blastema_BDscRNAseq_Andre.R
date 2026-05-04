@@ -668,11 +668,31 @@ if(Test_RIMA_mapping){
   library(miloR)
   library(SingleCellExperiment)
   
+  Using_onlyBlastemaDEG = TRUE
+  
+  if(Using_onlyBlastemaDEG){
+    Idents(aa) = aa$condition
+    
+    ntop = 1000
+    markers = FindMarkers(aa, ident.1 = 'Blastema_11dpa_1', ident.2 = "MatLimb_0dpa_1",
+                          logfc.threshold = 0.2,
+                          test.use = "wilcox",
+                          min.pct = 0.05,
+                          only.pos = FALSE)
+    hvgs = rownames(markers)[1:ntop]
+    
+  }
+  
   bl = subset(aa, subset = batch == 'blastema') 
   plc = subset(aa, subset = batch == 'PLC') 
   
   bl = NormalizeData(bl, normalization.method = "LogNormalize", scale.factor = 10000)
-  bl <- FindVariableFeatures(bl, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+  if(Using_onlyBlastemaDEG){
+    VariableFeatures(bl) = hvgs
+  }else{
+    bl <- FindVariableFeatures(bl, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+  }
+  
   bl <- ScaleData(bl)
   bl <- RunPCA(bl, features = VariableFeatures(object = bl), verbose = FALSE, weight.by.var = TRUE)
   bl <- RunUMAP(bl, reduction = "pca", dims = 1:30, n.neighbors = 30,  min.dist = 0.3)
@@ -688,9 +708,13 @@ if(Test_RIMA_mapping){
   ggsave(paste0(resDir, '/Milo_blastema_umapEmbedding.pdf'), 
          width = 16, height = 8)
   
-  
   plc = NormalizeData(plc, normalization.method = "LogNormalize", scale.factor = 10000)
-  plc <- FindVariableFeatures(plc, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+  if(Using_onlyBlastemaDEG){
+    VariableFeatures(plc) = hvgs
+  }else{
+    plc <- FindVariableFeatures(plc, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+  }
+  
   plc <- ScaleData(plc)
   plc <- RunPCA(plc, features = VariableFeatures(object = plc), verbose = FALSE, weight.by.var = TRUE)
   plc <- RunUMAP(plc, reduction = "pca", dims = 1:30, n.neighbors = 50,  min.dist = 0.3)
@@ -736,10 +760,10 @@ if(Test_RIMA_mapping){
     milos, dt_sims,
     n_scrambles = 10,
     col_scramble_label = 'seurat_clusters',
-    direction = "b"
+    direction = "lr"
   )
   
-  saveRDS(dt_sims_sig, file = paste0(RdataDir, '/dt_sims_sig.rds'))
+  saveRDS(dt_sims_sig, file = paste0(RdataDir, '/dt_sims_sig_usingOnlyBlastemaMarkers.rds'))
   
   # Step 4: Match significant nhood-nhood connections
   #dt_sims_sig$is_significant[which(dt_sims_sig$pval < 0.01)] = TRUE
@@ -757,9 +781,10 @@ if(Test_RIMA_mapping){
                      cols_color = c("condition", "condition"), 
                      dimred="UMAP", 
                      #dt_palette = dt_cols, 
-                     args_process_coordinates = list(list(angle = 225, shift = c(0, 0)), 
-                                                     list(angle = 45, shift= c(10, 0))),
+                     args_process_coordinates = list(list(angle = 45, shift = c(0, 0)), 
+                                                     list(angle = 90, shift= c(10, 0))),
                      linewd = 0.2) 
+  
   ggsave(paste0(resDir, '/Milo_Blatema_PLC_correlationMapping.pdf'), 
          width = 8, height = 5)
   
