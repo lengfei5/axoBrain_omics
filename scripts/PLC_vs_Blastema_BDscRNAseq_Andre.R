@@ -901,3 +901,57 @@ pheatmap(data_subset_norm,
 )
 
 
+##########################################
+# try to quantify the similarity between vitro and vivo  
+##########################################
+aa = readRDS(paste0(RdataDir,
+                    '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled_clean.rds'))
+
+
+aa$batch = 'PLC'
+aa$batch[aa$condition == 'MatLimb_0dpa_1' | aa$condition == "Blastema_11dpa_1"] = 'blastema' 
+
+aa$batch = factor(aa$batch, levels = c('blastema', 'PLC'))
+
+DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE)
+
+Idents(aa) = aa$condition
+
+markers = FindMarkers(aa, ident.1 = 'Blastema_11dpa_1', ident.2 = "MatLimb_0dpa_1",
+                      logfc.threshold = 0.5,
+                      test.use = "wilcox",
+                      min.pct = 0.05,
+                      only.pos = FALSE)
+
+ntop = 300
+ggs = rownames(markers)[1:ntop]
+
+bl_pseudo = AverageExpression(aa, assays = "RNA", features = ggs,
+                                           group.by = c('condition'), 
+                                           layer = 'data')
+bl_pseudo = data.frame(bl_pseudo)
+ggs_sel = rownames(bl_pseudo)
+
+bl_pseudo = bl_pseudo[, grep('Blastema.11dpa.1', colnames(bl_pseudo))]
+
+exprs = aa@assays$RNA@layers$data
+exprs = exprs[match(ggs_sel, rownames(aa)), ]
+exprs = data.frame(exprs)
+cors = cor(x = exprs, y = bl_pseudo, method = 'spearman')
+
+res = data.frame(cors = cors, condition = aa$condition)
+
+
+ggplot(res, aes(x = condition, y = cors, fill = condition)) + 
+  stat_boxplot(geom = "errorbar",
+               width = 0.25) + 
+  geom_boxplot() + 
+  scale_fill_manual(values=cols) + 
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, size = 12, vjust = 0.5, hjust = 0.5),
+        axis.text.y = element_text(angle = 0, size = 12)) +
+  labs( x = 'condition', y = 'Spearman Correlation with averg Blastema dpa11' )
+
+ggsave(paste0(resDir, '/Blatema_PLC_correlation_Boxplot_300genes.pdf'), 
+       width = 10, height = 6)
+
