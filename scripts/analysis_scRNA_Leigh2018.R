@@ -127,7 +127,7 @@ p2 = DimPlot(seu_dpa3, group.by = 'celltypes', label = TRUE, repel = TRUE) + ggt
   NoLegend()
 p3 = DimPlot(seu_dpa14, group.by = 'celltypes', label = TRUE, repel = TRUE) + ggtitle('dpa14') +
   NoLegend()
-p4 = DimPlot(seu_dpa0, group.by = 'celltypes', label = TRUE, repel = TRUE) + ggtitle('dpa23') +
+p4 = DimPlot(seu_dpa23, group.by = 'celltypes', label = TRUE, repel = TRUE) + ggtitle('dpa23') +
   NoLegend()
 
 (p1 + p2)/(p3 + p4) 
@@ -135,19 +135,43 @@ p4 = DimPlot(seu_dpa0, group.by = 'celltypes', label = TRUE, repel = TRUE) + ggt
 ggsave(filename = paste0(resDir, '/tSNE_Whited_celltypes.pdf'), 
        width = 16, height = 12)
 
-### dpa0
-features = c(rownames(seu_dpa0)[grep('WNT3A', rownames(seu_dpa0))],
-             rownames(seu_dpa0)[grep('WNT5A', rownames(seu_dpa0))],
-             rownames(seu_dpa0)[grep('TGFB', rownames(seu_dpa0))],
-             rownames(seu_dpa0)[grep('INHA', rownames(seu_dpa0))])
-FeaturePlot(seu_dpa0, 
+### dpa0 Wnt1, Wnt2, Wnt8a and Wnt8b
+aa = seu_dpa0
+features = c(rownames(aa)[grep('WNT3A', rownames(aa))],
+             rownames(aa)[grep('WNT5A', rownames(aa))],
+             rownames(aa)[grep('WNT1_', rownames(aa))],
+             rownames(aa)[grep('WNT2_', rownames(aa))],
+             rownames(aa)[grep('WNT8_', rownames(aa))],
+             rownames(aa)[grep('WNT8A_', rownames(aa))],
+             rownames(aa)[grep('WNT8B_', rownames(aa))],
+             rownames(aa)[grep('TGFB', rownames(aa))],
+             rownames(aa)[grep('INHA', rownames(aa))])
+
+ggs = sapply(features, function(x){x = unlist(strsplit(as.character(x), '[|]'))[3]; 
+                                    x = gsub("\\^.*",'', x); 
+                                    as.character(x)})
+#ggs[length(ggs)] = "INHA"
+
+p = FeaturePlot(aa, 
             features = features,
-            ncol = 2)
+            ncol = 3)
+
+# Loop over the individual plots (assuming p[[1]] to p[[N]])
+for(i in  seq_along(p)){
+  p[[i]] <- p[[i]] + labs(title = ggs[i])
+}
+
+print(p)
 
 ggsave(filename = paste0(resDir, '/Whiteddataset_tSNE_dpa0_featureplot.pdf'), 
-       width = 12, height = 18)
+       width = 12, height = 10)
 
-VlnPlot(seu_dpa0, features = features, group.by = 'celltypes', ncol = 1)
+p1 = VlnPlot(aa, features = features, group.by = 'celltypes', ncol = 1)
+for(i in  seq_along(p1)){
+  p1[[i]] <- p1[[i]] + labs(title = ggs[i])
+}
+
+print(p1)
 
 ggsave(filename = paste0(resDir, '/Whiteddataset_tSNE_dpa0_VlnPlot.pdf'), 
        width = 8, height = 28)
@@ -163,16 +187,36 @@ features = c(rownames(aa)[grep('WNT3A', rownames(aa))],
              rownames(aa)[grep('WNT1_', rownames(aa))],
              rownames(aa)[grep('WNT2_', rownames(aa))],
              rownames(aa)[grep('WNT8_', rownames(aa))],
+             rownames(aa)[grep('WNT8A_', rownames(aa))],
+             rownames(aa)[grep('WNT8B_', rownames(aa))],
              rownames(aa)[grep('TGFB', rownames(aa))],
              rownames(aa)[grep('INHA', rownames(aa))])
-FeaturePlot(aa, 
-            features = features,
-            ncol = 2)
+
+ggs = sapply(features, function(x){x = unlist(strsplit(as.character(x), '[|]'))[3]; 
+x = gsub("\\^.*",'', x); 
+as.character(x)})
+#ggs[length(ggs)] = "INHA"
+
+p = FeaturePlot(aa, 
+                features = features,
+                ncol = 3)
+
+# Loop over the individual plots (assuming p[[1]] to p[[N]])
+for(i in  seq_along(p)){
+  p[[i]] <- p[[i]] + labs(title = ggs[i])
+}
+
+p1 = VlnPlot(aa, features = features, group.by = 'celltypes', ncol = 1)
+for(i in  seq_along(p1)){
+  p1[[i]] <- p1[[i]] + labs(title = ggs[i])
+}
+
+print(p)
 
 ggsave(filename = paste0(resDir, '/Whiteddataset_tSNE_dpa3_featureplot.pdf'), 
-       width = 12, height = 18)
+       width = 12, height = 10)
 
-VlnPlot(aa, features = features, group.by = 'celltypes', ncol = 1)
+print(p1)
 
 ggsave(filename = paste0(resDir, '/Whiteddataset_tSNE_dpa3_VlnPlot.pdf'), 
        width = 8, height = 28)
@@ -187,16 +231,37 @@ features = c(rownames(aa)[grep('WNT3A', rownames(aa))],
              rownames(aa)[grep('WNT1_', rownames(aa))],
              rownames(aa)[grep('WNT2_', rownames(aa))],
              rownames(aa)[grep('WNT8_', rownames(aa))],
+             rownames(aa)[grep('WNT8A_', rownames(aa))],
+             rownames(aa)[grep('WNT8B_', rownames(aa))],
              rownames(aa)[grep('TGFB', rownames(aa))],
              rownames(aa)[grep('INHA', rownames(aa))])
-FeaturePlot(aa, 
-            features = features,
-            ncol = 2)
+
+ggs = sapply(features, function(x){x = unlist(strsplit(as.character(x), '[|]'))[3]; 
+x = gsub("\\^.*",'', x); 
+as.character(x)})
+#ggs[length(ggs)] = "INHA"
+
+p = FeaturePlot(aa, 
+                features = features,
+                ncol = 3)
+
+# Loop over the individual plots (assuming p[[1]] to p[[N]])
+for(i in  seq_along(p)){
+  p[[i]] <- p[[i]] + labs(title = ggs[i])
+}
+
+p1 = VlnPlot(aa, features = features, group.by = 'celltypes', ncol = 1)
+for(i in  seq_along(p1)){
+  p1[[i]] <- p1[[i]] + labs(title = ggs[i])
+}
+
+print(p)
 
 ggsave(filename = paste0(resDir, '/Whiteddataset_tSNE_dpa14_featureplot.pdf'), 
-       width = 12, height = 18)
+       width = 12, height = 10)
 
-VlnPlot(aa, features = features, group.by = 'celltypes', ncol = 1)
+
+plot(p1)
 
 ggsave(filename = paste0(resDir, '/Whiteddataset_tSNE_dpa14_VlnPlot.pdf'), 
        width = 8, height = 28)
@@ -205,23 +270,45 @@ write.csv2(features, file = paste0(resDir, '/Whiteddataset_dpa14_featuresList.cs
            row.names = FALSE)
 
 
-### dpa14
+### dpa23
 aa = seu_dpa23
 features = c(rownames(aa)[grep('WNT3A', rownames(aa))],
              rownames(aa)[grep('WNT5A', rownames(aa))],
              rownames(aa)[grep('WNT1_', rownames(aa))],
              rownames(aa)[grep('WNT2_', rownames(aa))],
              rownames(aa)[grep('WNT8_', rownames(aa))],
+             rownames(aa)[grep('WNT8A_', rownames(aa))],
+             rownames(aa)[grep('WNT8B_', rownames(aa))],
              rownames(aa)[grep('TGFB', rownames(aa))],
              rownames(aa)[grep('INHA', rownames(aa))])
-FeaturePlot(aa, 
-            features = features,
-            ncol = 2)
+
+ggs = sapply(features, function(x){x = unlist(strsplit(as.character(x), '[|]'))[3]; 
+x = gsub("\\^.*",'', x); 
+as.character(x)})
+
+ggs[length(ggs)] = "INHA"
+
+
+p = FeaturePlot(aa, 
+                features = features,
+                ncol = 3)
+
+# Loop over the individual plots (assuming p[[1]] to p[[N]])
+for(i in  seq_along(p)){
+  p[[i]] <- p[[i]] + labs(title = ggs[i])
+}
+
+p1 = VlnPlot(aa, features = features, group.by = 'celltypes', ncol = 1)
+for(i in  seq_along(p1)){
+  p1[[i]] <- p1[[i]] + labs(title = ggs[i])
+}
+
+print(p)
 
 ggsave(filename = paste0(resDir, '/Whiteddataset_tSNE_dpa23_featureplot.pdf'), 
-       width = 12, height = 18)
+       width = 12, height = 14)
 
-VlnPlot(aa, features = features, group.by = 'celltypes', ncol = 1)
+plot(p1)
 
 ggsave(filename = paste0(resDir, '/Whiteddataset_tSNE_dpa23_VlnPlot.pdf'), 
        width = 8, height = 28)
