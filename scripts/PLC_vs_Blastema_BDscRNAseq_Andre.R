@@ -376,6 +376,7 @@ features = c('Prrx1', 'Mfap5',  'Fbn1',   'Pdgfra', ## Li et al., 2020
              'Lum', 'Dpt', 'Postn', # whited paper
              'Dpt', 'Pi16' # Sabine
 )
+
 features = unique(toupper(features))
 features = features[!is.na(match(features, rownames(aa)))]
 
@@ -384,7 +385,7 @@ features = c("PRRX1", "PDGFRA", "DPT", "ACTA2", "LUM", "COL1A2", "MMP2", 'POSTN'
 FeaturePlot(aa, features = features)
 
 ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_doubletFiltered", 
-                         "_clusters.30PCs.res0.5_CTfeatures.pdf"),
+                         "_clusters.30PCs.res0.5_CTfeatures_", all_or_subset, ".pdf"),
        width = 16, height = 12)
 
 
@@ -396,9 +397,9 @@ VlnPlot(aa, features = "LUM")
 aa$celltype = NA
 
 aa$celltype[!is.na(match(aa$seurat_clusters, 
-                         c('0', '1', '5', '10', '13', '16',
-                           '4', '7', '6', '9', '12', '25', 
-                           '3', '8')))] = 'CT'
+                         c('0', '1',  '3',  '4', '5', '10', '13', '16',
+                            '7', '6', '9', '12', '25', 
+                            '8')))] = 'CT'
 
 DimPlot(aa, group.by = 'celltype')
 
@@ -430,19 +431,29 @@ DimPlot(aa, group.by = 'condition', reduction = 'umap', cols = cols, label = TRU
 saveRDS(aa, file = paste0(RdataDir,
                           '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.rds'))
 
-
 ##########################################
 # downsample 3k cells for each condition and 2rd round of CT cleaning 
 ##########################################
 aa = readRDS(file = paste0(RdataDir,
                            '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.rds'))
 
-#aa = subset(aa, cells = colnames(aa)[which(aa$condition != "PLC_8dpd_IL11treated_1" & 
-#                                             aa$condition != "PLC_8dpd_Dexatreated_1")])
 
-#aa$condition = droplevels(aa$condition)
-Idents(aa) = aa$condition
-aa = subset(x = aa, downsample = 3000)
+subset_per_condition = FALSE
+if(subset_per_condition)
+{
+  #aa = subset(aa, cells = colnames(aa)[which(aa$condition != "PLC_8dpd_IL11treated_1" & 
+  #                                             aa$condition != "PLC_8dpd_Dexatreated_1")])
+  
+  #aa$condition = droplevels(aa$condition)
+  Idents(aa) = aa$condition
+  aa = subset(x = aa, downsample = 3000)
+  
+  all_or_subset = 'downsampled'
+  
+}else{
+  all_or_subset = 'all'
+}
+
 
 aa = NormalizeData(aa, normalization.method = "LogNormalize", scale.factor = 10000)
 aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 5000) # find subset-specific HVGs
@@ -465,25 +476,25 @@ aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.5)
 DimPlot(aa,  reduction = 'umap',  label = TRUE, repel = TRUE)
 
 
-
 p1 = DimPlot(aa,  reduction = 'umap', cols = cols,
              group.by = 'condition', label = TRUE, repel = TRUE)
 p2 = DimPlot(aa,  reduction = 'umap',  label = TRUE, repel = TRUE)
 
 p1 + p2
 
-ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_rmDFout_CTselected.downsampled_umap_clusters", 
-                         ".pdf"),
+
+ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_rmDFout_CTselected.", all_or_subset, 
+                         "_umap_clusters", ".pdf"),
        width = 18, height = 6)
 
 saveRDS(aa, file = paste0(RdataDir,
-                          '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled.rds'))
+                          '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.', all_or_subset, '.rds'))
 
 
 markers = FindAllMarkers(aa, only.pos = TRUE, min.pct = 0.2, logfc.threshold = 0.5)
 
 saveRDS(markers, file = paste0(RdataDir, 
-                               'Andre_PLCscRNAseq_QCsfiltered_CTselected.downsampled.rds'))
+                               'Andre_PLCscRNAseq_QCsfiltered_CTselected.', all_or_subset, '.rds'))
 
 ## reload the calculated clusters and markers
 cat(length(unique(markers$gene)), ' markers found in ax\n')
@@ -493,6 +504,7 @@ markers %>%
   dplyr::filter(avg_log2FC > 1.0) %>%
   slice_head(n = 10) %>%
   ungroup() -> top10
+
 
 #ggs = top10$gene[which(top10$cluster == 'immune_cells')]
 #ggs = ggs[grep('^AME|^LOC', ggs, invert = TRUE)]
@@ -505,12 +517,13 @@ ggsave(filename = paste0(resDir,
                          '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected_heatmap.pdf'), 
        width = 20, height = 30)
 
+
 ## double check the CT markers
 features = c("PRRX1", "PDGFRA", "DPT", "ACTA2", "LUM", "COL1A2", "MMP2", 'POSTN', "COL3A1")
 FeaturePlot(aa, features = features)
 
 ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_doubletFiltered", 
-                         "_CTselected_CTfeatures.pdf"),
+                         "_CTselected_CTfeatures.", all_or_subset, ".pdf"),
        width = 16, height = 12)
 
 FeaturePlot(aa, features = c('nCount_RNA', 'nFeature_RNA', 'percent.mt'))
@@ -519,7 +532,14 @@ ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_doubletFiltered",
                          "_CTselected_lowSequencingClusters.pdf"),
        width = 12, height = 8)
 
+VlnPlot(aa, features = c('nCount_RNA', 'nFeature_RNA', 'percent.mt'),
+        group.by = 'seurat_clusters', pt.size = 0, ncol = 1)
+
+VlnPlot(aa, features = features[5:9],
+        group.by = 'seurat_clusters', pt.size = 0, ncol = 1)
+
 VlnPlot(aa, features = 'nFeature_RNA', group.by = 'condition', pt.size = 0)
+
 
 ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_doubletFiltered", 
                          "_CTselected_nCount_RNA.pdf"),
@@ -528,6 +548,7 @@ ggsave(filename = paste0(resDir, "AndrePLCscRNAseq_QCs_doubletFiltered",
 
 
 aa = subset(aa, cells = colnames(aa)[which(aa$seurat_clusters != '17' &
+                                             aa$seurat_clusters != '9' &
                                              aa$seurat_clusters != '18')])
 
 #aa = subset(aa, cells = colnames(aa)[which(aa$condition != "PLC_5dpd_0" &
@@ -548,11 +569,44 @@ aa <- RunUMAP(aa, reduction = "pca", dims = 1:30, n.neighbors = 50,  min.dist = 
 
 DimPlot(aa,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
 
-ggsave(paste0(resDir, 'Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled_clean.pdf'), 
+
+aa <- FindNeighbors(aa, dims = 1:30)
+
+aa <- FindClusters(aa, verbose = FALSE, algorithm = 3, resolution = 0.5)
+
+DimPlot(aa,  reduction = 'umap',  label = TRUE, repel = TRUE)
+
+
+## second round of cleaning
+p1 = DimPlot(aa,  reduction = 'umap', cols = cols,
+             group.by = 'condition', label = TRUE, repel = TRUE)
+p2 = DimPlot(aa,  reduction = 'umap',  label = TRUE, repel = TRUE)
+
+p1 + p2
+
+aa = subset(aa, cells = colnames(aa)[which(aa$seurat_clusters != '19' &
+                                             aa$seurat_clusters != '20' &
+                                             aa$seurat_clusters != '21')])
+
+
+aa = NormalizeData(aa, normalization.method = "LogNormalize", scale.factor = 10000)
+aa <- FindVariableFeatures(aa, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+
+aa <- ScaleData(aa)
+aa <- RunPCA(aa, features = VariableFeatures(object = aa), verbose = FALSE, weight.by.var = TRUE)
+
+ElbowPlot(aa, ndims = 50)
+
+aa <- RunUMAP(aa, reduction = "pca", dims = 1:30, n.neighbors = 50,  min.dist = 0.3)
+
+DimPlot(aa,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
+
+
+ggsave(paste0(resDir, 'Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.', all_or_subset, '_clean.pdf'), 
        width = 12, height = 8)
 
 saveRDS(aa, file = paste0(RdataDir,
-                          '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled_clean.rds'))
+                          '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.', all_or_subset, '_clean.rds'))
 
 ########################################################
 ########################################################
@@ -650,6 +704,9 @@ ggsave(paste0(resDir, '/Integration_PLC_Blastema_RunHarmony_3000HVGs.pdf'),
 aa = readRDS(paste0(RdataDir,
                     '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled_clean.rds'))
 
+aa = readRDS(paste0(RdataDir,
+                    '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.all_clean.rds'))
+
 aa$batch = 'PLC'
 aa$batch[aa$condition == 'MatLimb_0dpa_1' | aa$condition == "Blastema_11dpa_1"] = 'blastema' 
 
@@ -661,8 +718,8 @@ aa = subset(aa, cell= colnames(aa)[which(aa$condition != 'PLC_5dpd_1' &
                                            aa$condition != 'PLC_8dpd_IL11treated_1' &
                                            aa$condition != 'PLC_8dpd_Dexatreated_1')])
 
-
 Test_RIMA_mapping = FALSE
+
 if(Test_RIMA_mapping){
   library(RIMA)
   library(miloR)

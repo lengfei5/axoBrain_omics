@@ -292,6 +292,7 @@ p1 /p2
 ggsave(filename = paste0(resDir, '/UMAP_condition_cellTypes_filtered.pdf'), 
        width = 12, height = 16)
 
+
 ##########################################
 # subset CT  
 ##########################################
@@ -444,7 +445,7 @@ saveRDS(aa, file = paste0(RdataDir,
 
 ########################################################
 ########################################################
-# Section II: Trajectory analysis 
+# Section II: Trajectory analysis for CTs 
 # 
 ########################################################
 ########################################################
