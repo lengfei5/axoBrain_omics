@@ -20,7 +20,7 @@ library(ggplot2)
 library(pheatmap)
 library(RColorBrewer)
 library(data.table)
-#library("viridis")
+library("viridis")
 
 version.analysis = '_axolotl20260331'
 #resDir = paste0("../results/scRNAseq_axolotle_limbReg_Diego", version.analysis, '/')
