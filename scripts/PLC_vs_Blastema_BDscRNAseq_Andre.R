@@ -743,6 +743,8 @@ if(Test_RIMA_mapping){
   bl = subset(aa, subset = batch == 'blastema') 
   plc = subset(aa, subset = batch == 'PLC') 
   
+  
+  ### prepare the blatema data
   bl = NormalizeData(bl, normalization.method = "LogNormalize", scale.factor = 10000)
   
   if(Using_onlyBlastemaDEG){
@@ -763,9 +765,22 @@ if(Test_RIMA_mapping){
   
   p1 + p2
   
-  ggsave(paste0(resDir, '/Milo_blastema_umapEmbedding_all.pdf'), 
+  ggsave(paste0(resDir, '/Milo_blastema_umapEmbedding_all_cleaned.pdf'), 
          width = 16, height = 8)
   
+  
+  VlnPlot(bl, features = c('nCount_RNA', 'nFeature_RNA', 'percent.mt'),
+          group.by = 'seurat_clusters', pt.size = 0, ncol = 1)
+  
+  
+  bl = subset(bl, cells = colnames(bl)[which(bl$seurat_clusters != '2' &
+                                               bl$seurat_clusters != '10' &
+                                               bl$seurat_clusters != '11' & 
+                                               bl$seurat_clusters != '12')])
+  
+  
+  
+  ### process the plc for milo
   plc = NormalizeData(plc, normalization.method = "LogNormalize", scale.factor = 10000)
   if(Using_onlyBlastemaDEG){
     VariableFeatures(plc) = hvgs
@@ -785,9 +800,21 @@ if(Test_RIMA_mapping){
   
   p1 + p2
   
-  ggsave(paste0(resDir, '/Milo_PLC_umapEmbedding_all.pdf'), 
+  ggsave(paste0(resDir, '/Milo_PLC_umapEmbedding_all_cleaned.pdf'), 
          width = 16, height = 8)
   
+  FeaturePlot(plc, features = 'nFeature_RNA')
+  
+  VlnPlot(plc, features = c('nCount_RNA', 'nFeature_RNA', 'percent.mt'),
+          group.by = 'seurat_clusters', pt.size = 0, ncol = 1)
+  
+  
+  plc = subset(plc, cells = colnames(plc)[which(plc$seurat_clusters != '6' &
+                                                  plc$seurat_clusters != '12' &
+                                                  plc$seurat_clusters != '13' & 
+                                                  plc$seurat_clusters != '15')])
+  
+  ### save the bl and plc sce objects for Milo
   sce_bl = as.SingleCellExperiment(bl)
   sce_plc = as.SingleCellExperiment(plc)
   
@@ -797,6 +824,9 @@ if(Test_RIMA_mapping){
   # Here we load the built-in example datasets of mouse and rabbit gastrulation
   #sce_mouse <- RIMA::sce_mouse_gastrulation
   #sce_rabbit <- RIMA::sce_rabbit_gastrulation
+  
+  sce_bl = readRDS(file = paste0(RdataDir, 'sce_for_Milo_blastema.rds'))
+  sce_plc = readRDS(file = paste0(RdataDir, 'sce_for_Milo_PLC.rds'))
   
   # Step 0: Define the neighbourhoods (here with Milo's implementation, but could use others, e.g. metacells)
   define_neighbourhoods <- function(sce, prop_seeds, knn=10, reduced.dim="PCA", n_components = 30){
@@ -813,8 +843,13 @@ if(Test_RIMA_mapping){
   # Step 1: Preprocess the Milo objects
   milos <- preprocess_milos(mi_bl, mi_plc)
   
+  saveRDS(milos, file = paste0(RdataDir, '/milos_usingOnlyBlastemaMarkers_all.rds'))
+  
   # Step 2: Calculate neighbourhood similarities
   dt_sims <- calculate_similarities(milos, method = "spearman")
+  
+  saveRDS(dt_sims, file = paste0(RdataDir, '/dt_sims_usingOnlyBlastemaMarkers_all.rds'))
+  
   
   # Step 3: Assess statistical significance of nhood-nhood similarity
   dt_sims_sig <- calculate_nhoodnhood_significance(
@@ -835,18 +870,19 @@ if(Test_RIMA_mapping){
   dt_sims_sig2$is_significant[which(dt_sims_sig2$pval_combined < 0.05)] = TRUE
   dt_match2 <- match_nhoods(dt_sims_sig2[is_significant == TRUE])
   
+  
   # Step 5: Visualize and analyze results
-  dt_cols = data.frame(cols_color = names(cols), color = cols)
+  dt_cols = data.frame(condition = names(cols), color = cols)
   
   plot_matches_embed(milos, dt_match, 
                      cols_color = c("condition", "condition"), 
                      dimred="UMAP", 
-                     #dt_palette = dt_cols, 
-                     args_process_coordinates = list(list(angle = 45, shift = c(0, 0)), 
-                                                     list(angle = 90, shift= c(10, 0))),
+                     dt_palette = dt_cols, 
+                     args_process_coordinates = list(list(angle = 225, shift = c(0, 0)), 
+                                                     list(angle = 45, shift= c(10, 0))),
                      linewd = 0.2) 
   
-  ggsave(paste0(resDir, '/Milo_Blatema_PLC_correlationMapping_all.pdf'), 
+  ggsave(paste0(resDir, '/Milo_Blatema_PLC_correlationMapping_all_v2.pdf'), 
          width = 8, height = 5)
   
   
@@ -965,8 +1001,10 @@ pheatmap(data_subset_norm,
 ##########################################
 # try to quantify the similarity between vitro and vivo  
 ##########################################
+#aa = readRDS(paste0(RdataDir,
+#                    '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled_clean.rds'))
 aa = readRDS(paste0(RdataDir,
-                    '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.downsampled_clean.rds'))
+                    '/Andre_PLCscRNAseq_QCsfiltered_rmDFout_CTselected.all_clean.rds'))
 
 
 aa$batch = 'PLC'
@@ -975,6 +1013,38 @@ aa$batch[aa$condition == 'MatLimb_0dpa_1' | aa$condition == "Blastema_11dpa_1"] 
 aa$batch = factor(aa$batch, levels = c('blastema', 'PLC'))
 
 DimPlot(aa, cols = cols, group.by = 'condition', label = TRUE, repel = TRUE)
+
+## try to clean the bl cells
+bl = subset(aa, subset = batch == 'blastema') 
+plc = subset(aa, subset = batch == 'PLC') 
+
+### prepare the blatema data
+bl = NormalizeData(bl, normalization.method = "LogNormalize", scale.factor = 10000)
+
+bl <- FindVariableFeatures(bl, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+
+bl <- ScaleData(bl)
+bl <- RunPCA(bl, features = VariableFeatures(object = bl), verbose = FALSE, weight.by.var = TRUE)
+bl <- RunUMAP(bl, reduction = "pca", dims = 1:30, n.neighbors = 30,  min.dist = 0.3)
+DimPlot(bl,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
+
+bl <- FindNeighbors(bl, dims = 1:30)
+bl <- FindClusters(bl, verbose = FALSE, algorithm = 3, resolution = 0.5)
+p1 = DimPlot(bl,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
+p2 = DimPlot(bl,  reduction = 'umap', label = TRUE, repel = TRUE)
+
+p1 + p2
+
+
+VlnPlot(bl, features = c('nCount_RNA', 'nFeature_RNA', 'percent.mt'),
+        group.by = 'seurat_clusters', pt.size = 0, ncol = 1)
+
+
+bl = subset(bl, cells = colnames(bl)[which(bl$seurat_clusters != '2' &
+                                             bl$seurat_clusters != '10' &
+                                             bl$seurat_clusters != '11' & 
+                                             bl$seurat_clusters != '12')])
+
 
 Idents(aa) = aa$condition
 
