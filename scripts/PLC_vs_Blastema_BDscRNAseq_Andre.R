@@ -744,6 +744,7 @@ if(Test_RIMA_mapping){
   plc = subset(aa, subset = batch == 'PLC') 
   
   bl = NormalizeData(bl, normalization.method = "LogNormalize", scale.factor = 10000)
+  
   if(Using_onlyBlastemaDEG){
     VariableFeatures(bl) = hvgs
   }else{
@@ -762,7 +763,7 @@ if(Test_RIMA_mapping){
   
   p1 + p2
   
-  ggsave(paste0(resDir, '/Milo_blastema_umapEmbedding.pdf'), 
+  ggsave(paste0(resDir, '/Milo_blastema_umapEmbedding_all.pdf'), 
          width = 16, height = 8)
   
   plc = NormalizeData(plc, normalization.method = "LogNormalize", scale.factor = 10000)
@@ -784,11 +785,14 @@ if(Test_RIMA_mapping){
   
   p1 + p2
   
-  ggsave(paste0(resDir, '/Milo_PLC_umapEmbedding.pdf'), 
+  ggsave(paste0(resDir, '/Milo_PLC_umapEmbedding_all.pdf'), 
          width = 16, height = 8)
   
   sce_bl = as.SingleCellExperiment(bl)
-  sce_plc = as.SingleCellExperiment(plc) 
+  sce_plc = as.SingleCellExperiment(plc)
+  
+  saveRDS(sce_bl, file = paste0(RdataDir, 'sce_for_Milo_blastema.rds'))
+  saveRDS(sce_plc, file = paste0(RdataDir, 'sce_for_Milo_PLC.rds'))
   
   # Here we load the built-in example datasets of mouse and rabbit gastrulation
   #sce_mouse <- RIMA::sce_mouse_gastrulation
@@ -820,7 +824,7 @@ if(Test_RIMA_mapping){
     direction = "lr"
   )
   
-  saveRDS(dt_sims_sig, file = paste0(RdataDir, '/dt_sims_sig_usingOnlyBlastemaMarkers.rds'))
+  saveRDS(dt_sims_sig, file = paste0(RdataDir, '/dt_sims_sig_usingOnlyBlastemaMarkers_all.rds'))
   
   # Step 4: Match significant nhood-nhood connections
   #dt_sims_sig$is_significant[which(dt_sims_sig$pval < 0.01)] = TRUE
@@ -842,7 +846,7 @@ if(Test_RIMA_mapping){
                                                      list(angle = 90, shift= c(10, 0))),
                      linewd = 0.2) 
   
-  ggsave(paste0(resDir, '/Milo_Blatema_PLC_correlationMapping.pdf'), 
+  ggsave(paste0(resDir, '/Milo_Blatema_PLC_correlationMapping_all.pdf'), 
          width = 8, height = 5)
   
   
