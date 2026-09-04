@@ -61,16 +61,16 @@ c('3'='#F68282','15'='#31C53F','5'='#1FA195','1'='#B95FBB','13'='#D4D915',
   '10'='#E6C122')
 
 
+resDir = paste0("../results/scRNAseq_axolotle_PrimaryLimbCells", version.analysis, '/')
+if(!dir.exists(resDir)) dir.create(resDir)
+annot = readRDS(file = paste0(RdataDir, 'primary_curated_260226_geneAnnotation.withChrM.rds'))
+
 ########################################################
 ########################################################
 # Section I: test Andre's vitro data 
 # 
 ########################################################
 ########################################################
-
-resDir = paste0("../results/scRNAseq_axolotle_PrimaryLimbCells", version.analysis, '/')
-if(!dir.exists(resDir)) dir.create(resDir)
-annot = readRDS(file = paste0(RdataDir, 'primary_curated_260226_geneAnnotation.withChrM.rds'))
 
 ##########################################
 # process the matched gene annotation 
@@ -1040,12 +1040,43 @@ VlnPlot(bl, features = c('nCount_RNA', 'nFeature_RNA', 'percent.mt'),
         group.by = 'seurat_clusters', pt.size = 0, ncol = 1)
 
 
-bl = subset(bl, cells = colnames(bl)[which(bl$seurat_clusters != '2' &
+bl = subset(bl, cells = colnames(bl)[which(bl$seurat_clusters != '4' &
                                              bl$seurat_clusters != '10' &
-                                             bl$seurat_clusters != '11' & 
-                                             bl$seurat_clusters != '12')])
+                                             bl$seurat_clusters != '11')])
 
 
+
+## clean the plc
+### process the plc for milo
+plc = NormalizeData(plc, normalization.method = "LogNormalize", scale.factor = 10000)
+plc <- FindVariableFeatures(plc, selection.method = "vst", nfeatures = 3000) # find subset-specific HVGs
+
+plc <- ScaleData(plc)
+plc <- RunPCA(plc, features = VariableFeatures(object = plc), verbose = FALSE, weight.by.var = TRUE)
+plc <- RunUMAP(plc, reduction = "pca", dims = 1:30, n.neighbors = 50,  min.dist = 0.3)
+DimPlot(plc,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
+
+plc <- FindNeighbors(plc, dims = 1:30)
+plc <- FindClusters(plc, verbose = FALSE, algorithm = 3, resolution = 0.5)
+p1 = DimPlot(plc,  reduction = 'umap',  group.by = 'condition', label = TRUE, repel = TRUE, cols = cols)
+p2 = DimPlot(plc,  reduction = 'umap', label = TRUE, repel = TRUE)
+
+p1 + p2
+
+VlnPlot(plc, features = c('nCount_RNA', 'nFeature_RNA', 'percent.mt'),
+        group.by = 'seurat_clusters', pt.size = 0, ncol = 1)
+
+
+plc = subset(plc, cells = colnames(plc)[which(plc$seurat_clusters != '1' &
+                                                plc$seurat_clusters != '6' &
+                                                plc$seurat_clusters != '12' & 
+                                                plc$seurat_clusters != '17')])
+
+
+## clean the seurat object with bl and plc
+aa = subset(aa, cells = unique(c(colnames(bl), colnames(plc))))
+
+## select the markers and average the cells into pseudo-bulk
 Idents(aa) = aa$condition
 
 markers = FindMarkers(aa, ident.1 = 'Blastema_11dpa_1', ident.2 = "MatLimb_0dpa_1",
@@ -1083,6 +1114,6 @@ ggplot(res, aes(x = condition, y = cors, fill = condition)) +
         axis.text.y = element_text(angle = 0, size = 12)) +
   labs( x = 'condition', y = 'Spearman Correlation with averg Blastema dpa11' )
 
-ggsave(paste0(resDir, '/Blatema_PLC_correlation_Boxplot_300genes.pdf'), 
+ggsave(paste0(resDir, '/Blatema_PLC_correlation_Boxplot_300genes_allCells.pdf'), 
        width = 10, height = 6)
 
